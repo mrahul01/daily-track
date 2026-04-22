@@ -1,0 +1,5 @@
+stages:
+  - test  # SAST runs in the test stage by default
+
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
