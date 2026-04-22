@@ -1,5 +1,23 @@
 stages:
-  - test  # SAST runs in the test stage by default
+  - test
+  - upload
 
+# Includes the official GitLab SAST template
 include:
-  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml
+
+defectdojo_upload:
+  stage: upload
+  image: curlimages/curl:latest
+  script:
+    - |
+      curl -X POST "${DD_URL}/api/v2/import-scan/" \
+      -H "Authorization: Token ${DD_API_TOKEN}" \
+      -F "active=true" \
+      -F "verified=true" \
+      -F "scan_type=GitLab SAST Report" \
+      -F "engagement=${DD_ENGAGEMENT_ID}" \
+      -F "file=@gl-sast-report.json"
+  dependencies:
+    - semgrep-sast # This ensures the SAST report file is available
+  when: always
