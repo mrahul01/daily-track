@@ -2,7 +2,6 @@ stages:
   - test
   - upload
 
-# Includes the official GitLab SAST template
 include:
   - template: Security/SAST.gitlab-ci.yml
 
@@ -11,17 +10,13 @@ defectdojo_upload:
   image: curlimages/curl:latest
   script:
     - |
-      # Force the ID into a clean variable to remove any accidental spaces/quotes
-      CLEAN_ID=$(echo ${DD_ENGAGEMENT_ID} | tr -d '"' | xargs)
-      
       curl -X POST "${DD_URL}/api/v2/import-scan/" \
       -H "Authorization: Token ${DD_API_TOKEN}" \
       -F "active=true" \
       -F "verified=true" \
       -F "scan_type=GitLab SAST Report" \
-      -F "engagement=${CLEAN_ID}" \
+      -F "engagement=1" \
       -F "file=@gl-sast-report.json"
   dependencies:
     - semgrep-sast
   when: always
-
