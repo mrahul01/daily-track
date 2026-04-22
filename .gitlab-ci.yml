@@ -4,19 +4,38 @@ stages:
 
 include:
   - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
 
 defectdojo_upload:
   stage: upload
   image: curlimages/curl:latest
   script:
+    # 1. Upload SAST
     - |
       curl -X POST "${DD_URL}/api/v2/import-scan/" \
       -H "Authorization: Token ${DD_API_TOKEN}" \
-      -F "active=true" \
-      -F "verified=true" \
       -F "scan_type=GitLab SAST Report" \
       -F "engagement=1" \
       -F "file=@gl-sast-report.json"
+    
+    # 2. Upload Dependency Scanning
+    - |
+      curl -X POST "${DD_URL}/api/v2/import-scan/" \
+      -H "Authorization: Token ${DD_API_TOKEN}" \
+      -F "scan_type=GitLab Dependency Scanning Report" \
+      -F "engagement=1" \
+      -F "file=@gl-dependency-scanning-report.json"
+    
+    # 3. Upload Secret Detection
+    - |
+      curl -X POST "${DD_URL}/api/v2/import-scan/" \
+      -H "Authorization: Token ${DD_API_TOKEN}" \
+      -F "scan_type=GitLab Secret Detection Report" \
+      -F "engagement=1" \
+      -F "file=@gl-secret-detection-report.json"
   dependencies:
     - semgrep-sast
+    - gemnasium-python-dependency_scanning # Change to your language (e.g., gemnasium-maven)
+    - secret-detection
   when: always
