@@ -6,53 +6,98 @@ import '/src/App.css';
 function Register() {
   const navigate = useNavigate();
 
+  const [isOtpMode, setIsOtpMode] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
+
   const [formData, setFormData] = useState({
-    userID: '',
     userNAME: '',
     emailID: '',
     phoneNO: '',
-    password: ''
+    password: '',
+    isOtpMode: false
   });
 
   const [msg, setMsg] = useState('');
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
+  // ---------------- FULL REGISTER ----------------
+ const handleRegister = async (e) => {
+  e.preventDefault();
 
-    try {
-      const res = await axios.post('http://localhost:8000/register', {
-        userID: Number(formData.userID),
-        name: formData.userNAME,
-        email: formData.emailID,
-        phone: formData.phoneNO,
-        password: formData.password
-      });
+  if (formData.phoneNO && !/^\d{10}$/.test(formData.phoneNO)) {
+    alert("Please enter a valid 10-digit phone number");
+    setMsg("Please enter a valid 10-digit phone number");
+    return;
+  }
 
-      setMsg(res.data.message);
+  if (isOtpMode) {
+    alert("OTP signup is under development");
+    setMsg("OTP signup is under development");
+    return;
+  }
 
-      setTimeout(() => {
-        navigate('/login');
-      }, 1000);
+  if (!formData.userNAME || !formData.emailID || !formData.password) {
+    setMsg("Please fill all fields");
+    return;
+  }
 
-    } catch (err) {
-      setMsg(err.response?.data?.detail || "Registration failed");
+  try {
+    if (!formData.phoneNO) {
+      formData.phoneNO = "0000000000";
     }
-  };
+    const res = await axios.post('http://localhost:8000/register', {
+      userNAME: formData.userNAME,
+      emailID: formData.emailID,
+      phoneNO: formData.phoneNO,
+      password: formData.password
+    });
+    alert("Registration successful! Redirecting to login...");
+    setTimeout(() => navigate("/login"), 1000);
+
+  } catch (err) {
+    console.error(err);
+    setMsg(err.response?.data?.detail || "Registration failed");
+  }
+};
+const sendOtp = () => {
+  alert("OTP feature is under development");
+  setMsg("OTP feature is under development");
+};
+
+const verifyOtp = () => {
+  setMsg("OTP verification is under development");
+};
+
 
   return (
     <div className="login-container">
       <form className="login-form" onSubmit={handleRegister}>
         <h2>Register</h2>
 
-        <input
-          type="number"
-          placeholder="User ID"
-          onChange={e =>
-            setFormData({ ...formData, userID: e.target.value })
-          }
-          required
-        />
+        {/* 🔥 SINGLE TOGGLE BUTTON */}
+        <button
+          type="button"
+          onClick={() => {
+            setIsOtpMode(!isOtpMode);
+            setOtpSent(false);
+            setOtp('');
+            if (!isOtpMode) {alert("The otp signup is under development. Please use full signup for now."); setMsg("OTP signup is under development. Please use full signup for now.");}
+            else {setMsg('')}
+          }}
+          style={{
+            background: isOtpMode ? "#28a745" : "#007bff",
+            color: "white",
+            padding: "10px",
+            border: "none",
+            borderRadius: "6px",
+            marginBottom: "15px",
+            cursor: "pointer"
+          }}
+        >
+          {isOtpMode ? "Switch to Full Signup" : "Switch to Quick OTP Signup"}
+        </button>
 
+        {/* NAME */}
         <input
           type="text"
           placeholder="Full Name"
@@ -62,35 +107,61 @@ function Register() {
           required
         />
 
-        <input
-          type="email"
-          placeholder="Email"
-          onChange={e =>
-            setFormData({ ...formData, emailID: e.target.value })
-          }
-          required
-        />
-
+        {/* PHONE */}
         <input
           type="text"
-          placeholder="Phone Number"
+          placeholder="Phone Number (optional)"
           onChange={e =>
             setFormData({ ...formData, phoneNO: e.target.value })
           }
-          required
         />
 
-        <input
-          type="password"
-          placeholder="Password"
-          onChange={e =>
-            setFormData({ ...formData, password: e.target.value })
-          }
-          required
-        />
+        {/* FULL SIGNUP MODE */}
+        {!isOtpMode && (
+          <>
+            <input
+              type="email"
+              placeholder="Email"
+              onChange={e =>
+                setFormData({ ...formData, emailID: e.target.value })
+              }
+            />
 
-        <button type="submit">Create Account</button>
+            <input
+              type="password"
+              placeholder="Password"
+              onChange={e =>
+                setFormData({ ...formData, password: e.target.value })
+              }
+            />
 
+            <button type="submit">Create Account</button>
+          </>
+        )}
+
+        {/* OTP MODE */}
+        {isOtpMode && !otpSent && (
+          <button type="button" onClick={sendOtp}>
+            Send OTP
+          </button>
+        )}
+
+        {isOtpMode && otpSent && (
+          <>
+            <input
+              type="text"
+              placeholder="Enter OTP"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+            />
+
+            <button type="button" onClick={verifyOtp}>
+              Verify & Create Account
+            </button>
+          </>
+        )}
+
+        {/* LOGIN LINK */}
         <p className="toggle-text">
           Already have an account?{" "}
           <span onClick={() => navigate('/login')}>

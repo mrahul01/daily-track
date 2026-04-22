@@ -4,16 +4,23 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from sqlalchemy import Column, Integer, String, Time, Date
 from datetime import date, time
-
 from database import Base, engine, get_db, User
 
 app = FastAPI()
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://candied-unpicked-quiet.ngrok-free.dev",
+        "*"  
+    ],
     allow_credentials=True,
     allow_methods=["*"],
+    expose_headers=["*"],
     allow_headers=["*"],
 )
 
@@ -30,15 +37,14 @@ class DailyTrack(Base):
 
 
 class RegisterData(BaseModel):
-    userID: int
-    name: str
-    email: EmailStr
-    phone: str
+    userNAME: str
+    emailID: EmailStr
+    phoneNO: str 
     password: str
 
 
 class LoginData(BaseModel):
-    userID: int
+    emailID: EmailStr
     password: str
 
 
@@ -60,19 +66,25 @@ class DailyTrackOut(BaseModel):
     class Config:
         from_attributes = True
 
+class UpdateUser(BaseModel):
+    name: str
+    email: EmailStr
+    phone: str
+
+
+
 @app.post("/register")
 def register(data: RegisterData, db: Session = Depends(get_db)):
 
-    existing = db.query(User).filter(User.userID == data.userID).first()
-
-    if existing:
-        raise HTTPException(status_code=400, detail="User already exists")
-
+    existing_user = db.query(User).filter(User.emailID == data.emailID).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    if not data.password:
+        raise HTTPException(status_code=400, detail="Password required")
     new_user = User(
-        userID=data.userID,
-        userNAME=data.name,
-        emailID=data.email,
-        phoneNO=data.phone,
+        userNAME=data.userNAME,
+        emailID=data.emailID,
+        phoneNO=data.phoneNO,
         password=data.password
     )
 
@@ -80,13 +92,16 @@ def register(data: RegisterData, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    return {"message": "User registered successfully"}
-
+    return {"message": "User registered successfully", "user_id": new_user.userID}
+    
+@app.get("/")
+def home():
+    return {"message": "Backend is running"}
 
 @app.post("/login")
 def login(data: LoginData, db: Session = Depends(get_db)):
 
-    user = db.query(User).filter(User.userID == data.userID).first()
+    user = db.query(User).filter(User.emailID == data.emailID).first()
 
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
@@ -118,7 +133,22 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
         "email": user.emailID,
         "phone": user.phoneNO
     }
+@app.put("/user/{user_id}")
+def update_user(user_id: int, data: UpdateUser, db: Session = Depends(get_db)):
 
+    user = db.query(User).filter(User.userID == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.userNAME = data.name
+    user.emailID = data.email
+    user.phoneNO = data.phone
+
+    db.commit()
+    db.refresh(user)
+
+    return {"message": "User updated successfully"}
 @app.post("/add-track")
 def add_track(data: DailyTrackData, db: Session = Depends(get_db)):
 

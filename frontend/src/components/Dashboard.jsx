@@ -1,13 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import '/src/App.css';
+import { FaEdit, FaSave, FaTimes } from "react-icons/fa";
+import "/src/App.css";
+
+const BASE_URL = "http://localhost:8000";
 
 function Dashboard() {
   const navigate = useNavigate();
 
   const userID = localStorage.getItem("userID");
   const [user, setUser] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [updatedUser, setUpdatedUser] = useState({
+    name: "",
+    email: "",
+    phone: ""
+  });
 
   useEffect(() => {
     if (!userID) {
@@ -17,12 +26,14 @@ function Dashboard() {
 
     const fetchUser = async () => {
       try {
-        const res = await axios.get(
-          `http://localhost:8000/user/${userID}`
-        );
+        const res = await axios.get(`${BASE_URL}/user/${userID}`);
         setUser(res.data);
+        setUpdatedUser({
+          name: res.data.name,
+          email: res.data.email,
+          phone: res.data.phone
+        });
       } catch (err) {
-        console.error(err);
         alert("Failed to load user data");
       }
     };
@@ -35,48 +46,97 @@ function Dashboard() {
     navigate("/login");
   };
 
+  const handleChange = (e) => {
+    setUpdatedUser({
+      ...updatedUser,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSave = async () => {
+    try {
+      await axios.put(`${BASE_URL}/user/${userID}`, updatedUser);
+      setUser(updatedUser);
+      setEditMode(false);
+      alert("Profile updated successfully");
+    } catch (err) {
+      alert("Update failed");
+    }
+  };
+
   return (
     <div className="dashboard-container">
       <div className="dashboard-card">
-        <h2>User Dashboard</h2>
+
+        <div className="dashboard-header">
+          <h2>Dashboard</h2>
+
+          {!editMode ? (
+            <FaEdit className="edit-icon" onClick={() => setEditMode(true)} />
+          ) : (
+            <div>
+              <FaSave className="edit-icon" onClick={handleSave} />
+              <FaTimes className="edit-icon" onClick={() => setEditMode(false)} />
+            </div>
+          )}
+        </div>
 
         {user ? (
           <>
             <div className="user-info">
-              <strong>User ID:</strong> {user.id}
+              <strong>Name:</strong>{" "}
+              {editMode ? (
+                <input
+                  name="name"
+                  value={updatedUser.name}
+                  onChange={handleChange}
+                />
+              ) : (
+                user.name
+              )}
             </div>
 
             <div className="user-info">
-              <strong>Name:</strong> {user.name}
+              <strong>Email:</strong>{" "}
+              {editMode ? (
+                <input
+                  name="email"
+                  value={updatedUser.email}
+                  onChange={handleChange}
+                />
+              ) : (
+                user.email
+              )}
             </div>
 
             <div className="user-info">
-              <strong>Email:</strong> {user.email}
+              <strong>Phone:</strong>{" "}
+              {editMode ? (
+                <input
+                  name="phone"
+                  value={updatedUser.phone}
+                  onChange={handleChange}
+                />
+              ) : (
+                user.phone
+              )}
             </div>
 
-            <div className="user-info">
-              <strong>Phone:</strong> {user.phone}
+            <div className="dashboard-actions">
+              <div
+                className="action-card"
+                onClick={() => navigate("/daily-track")}
+              >
+                View Daily Track
+              </div>
             </div>
 
-            {/* Navigate to Daily Track */}
-            <div
-              className="user-info clickable"
-              onClick={() => navigate("/daily-track")}
-            >
-              Go to Daily Tracks
-            </div>
-
-            <button
-              className="logout-btn"
-              onClick={handleLogout}
-            >
+            <button className="logout-btn" onClick={handleLogout}>
               Logout
             </button>
           </>
         ) : (
-          <p className="loading-text">
-            Loading user profile...
-          </p>
+          <p>Loading...</p>
         )}
       </div>
     </div>

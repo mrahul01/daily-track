@@ -16,6 +16,7 @@ function App() {
       <Route path="/daily-track" element={<DailyTrack />} />
       <Route path="/add-track" element={<AddTrack />} />
     </Routes>
+    
   );
 }
 
