@@ -11,31 +11,35 @@ defectdojo_upload:
   stage: upload
   image: curlimages/curl:latest
   script:
-    # 1. Upload SAST
+    # 1. Upload SAST (if the file exists)
     - |
-      curl -X POST "${DD_URL}/api/v2/import-scan/" \
-      -H "Authorization: Token ${DD_API_TOKEN}" \
-      -F "scan_type=GitLab SAST Report" \
-      -F "engagement=1" \
-      -F "file=@gl-sast-report.json"
+      if [ -f gl-sast-report.json ]; then
+        curl -X POST "${DD_URL}/api/v2/import-scan/" \
+        -H "Authorization: Token ${DD_API_TOKEN}" \
+        -F "scan_type=GitLab SAST Report" \
+        -F "engagement=1" \
+        -F "file=@gl-sast-report.json"
+      fi
     
-    # 2. Upload Dependency Scanning
+    # 2. Upload Dependency Scanning (if the file exists)
     - |
-      curl -X POST "${DD_URL}/api/v2/import-scan/" \
-      -H "Authorization: Token ${DD_API_TOKEN}" \
-      -F "scan_type=GitLab Dependency Scanning Report" \
-      -F "engagement=1" \
-      -F "file=@gl-dependency-scanning-report.json"
+      if [ -f gl-dependency-scanning-report.json ]; then
+        curl -X POST "${DD_URL}/api/v2/import-scan/" \
+        -H "Authorization: Token ${DD_API_TOKEN}" \
+        -F "scan_type=GitLab Dependency Scanning Report" \
+        -F "engagement=1" \
+        -F "file=@gl-dependency-scanning-report.json"
+      fi
     
-    # 3. Upload Secret Detection
+    # 3. Upload Secret Detection (if the file exists)
     - |
-      curl -X POST "${DD_URL}/api/v2/import-scan/" \
-      -H "Authorization: Token ${DD_API_TOKEN}" \
-      -F "scan_type=GitLab Secret Detection Report" \
-      -F "engagement=1" \
-      -F "file=@gl-secret-detection-report.json"
-  dependencies:
-    - semgrep-sast
-    - gemnasium-python-dependency_scanning # Change to your language (e.g., gemnasium-maven)
-    - secret-detection
+      if [ -f gl-secret-detection-report.json ]; then
+        curl -X POST "${DD_URL}/api/v2/import-scan/" \
+        -H "Authorization: Token ${DD_API_TOKEN}" \
+        -F "scan_type=GitLab Secret Detection Report" \
+        -F "engagement=1" \
+        -F "file=@gl-secret-detection-report.json"
+      fi
+  # We remove the specific 'dependencies' list so it doesn't error out 
+  # if a job name changes. 'artifacts: true' is the default.
   when: always
