@@ -5,10 +5,20 @@ from sqlalchemy.orm import Session
 from sqlalchemy import Column, Integer, String, Time, Date
 from datetime import date, time
 from database import Base, engine, get_db, User
+from passlib.context import CryptContext
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
 app = FastAPI()
 
-from fastapi.middleware.cors import CORSMiddleware
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", truncate_error=False)
+
+def hash_password(password: str):
+    return pwd_context.hash(password[:72])
+
+def verify_password(plain_password: str, hashed_password: str):
+    return pwd_context.verify(plain_password[:72], hashed_password)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,12 +38,15 @@ Base.metadata.create_all(bind=engine)
 
 class DailyTrack(Base):
     __tablename__ = "dailytrack"
+    __table_args__ = {'extend_existing': True}  # Add this line
+    
     id = Column(Integer, primary_key=True, autoincrement=True)
     userID = Column(Integer)
     startTime = Column(Time)
     endTime = Column(Time)
     work = Column(String(30))
     track_date = Column(Date)
+
 
 
 class RegisterData(BaseModel):
@@ -81,11 +94,13 @@ def register(data: RegisterData, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
     if not data.password:
         raise HTTPException(status_code=400, detail="Password required")
+    
+    hashed_pwd = hash_password(data.password) 
     new_user = User(
         userNAME=data.userNAME,
         emailID=data.emailID,
         phoneNO=data.phoneNO,
-        password=data.password
+        password=hashed_pwd
     )
 
     db.add(new_user)
@@ -106,7 +121,7 @@ def login(data: LoginData, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    if user.password != data.password:
+    if not verify_password(data.password, user.password):
         raise HTTPException(status_code=401, detail="Wrong password")
 
     return {
@@ -197,3 +212,6 @@ def get_track(userID: int, db: Session = Depends(get_db)):
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
