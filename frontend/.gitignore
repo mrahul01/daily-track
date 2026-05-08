@@ -22,3 +22,32 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environments (Crucial for security)
+.env
+.env.production
+.env.development
+.env.test
+.env*.local
+
+# Dependencies (Added if you use different managers)
+/node_modules
+/jspm_packages
+
+# Build outputs
+/build
+/out
+.parcel-cache
+.next
+.nuxt
+
+# Testing
+/coverage
+.nyc_output
+
+# OS specific files
+Thumbs.db
+Desktop.ini
+
+# Optional: TypeScript cache
+*.tsbuildinfo
