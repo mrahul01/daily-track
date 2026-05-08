@@ -127,7 +127,7 @@ function Dashboard() {
                 className="action-card"
                 onClick={() => navigate("/daily-track")}
               >
-                View Daily Track
+                View Your Daily Track
               </div>
             </div>
 
