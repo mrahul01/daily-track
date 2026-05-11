@@ -1,24 +1,54 @@
 #!/bin/bash
 
-cd /home/ubuntu/app
+echo "Starting deployment..."
 
+cd /home/ubuntu/app || exit
+
+# Pull latest code
+git pull origin main
+
+# =========================
 # FRONTEND
-cd frontend
+# =========================
+
+echo "Building frontend..."
+
+cd /home/ubuntu/app/frontend || exit
+
 npm install
+
 npm run build
 
 pm2 delete frontend || true
-pm2 serve build 3000 --spa --name frontend
 
+pm2 serve dist 3000 --name frontend --spa
+
+# =========================
 # BACKEND
-cd ../backend
+# =========================
 
-python3 -m venv venv || true
+echo "Starting backend..."
+
+cd /home/ubuntu/app/backend || exit
 
 source venv/bin/activate
 
 pip install -r requirements.txt
 
-pkill -f gunicorn || true
+pm2 delete backend || true
 
-nohup gunicorn -w 4 -b 0.0.0.0:8000 app:app > gunicorn.log 2>&1 &
+pm2 start "uvicorn main:app --host 0.0.0.0 --port 8000" --name backend
+
+# =========================
+# SAVE PM2
+# =========================
+
+pm2 save
+
+# =========================
+# RESTART NGINX
+# =========================
+
+sudo systemctl restart nginx
+
+echo "Deployment completed!"
