@@ -1,16 +1,14 @@
-const BASE_URL = "https://candied-unpicked-quiet.ngrok-free.dev";
+// ─── Centralized API configuration ───────────────────────────────────────────
+// Set VITE_API_URL in your .env file for production.
+// Example: VITE_API_URL=https://yourapi.example.com
 
-export const loginUser = async (email, password) => {
-  const res = await fetch(`${BASE_URL}/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      emailID: email,
-      password: password
-    })
-  });
+export const BASE_URL =
+  import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-  return res.json();
+// ─── Auth helpers ──────────────────────────────────────────────────────────────
+export const isAuthenticated = () => Boolean(localStorage.getItem('userID'));
+
+export const getCurrentUserID = () => {
+  const id = localStorage.getItem('userID');
+  return id ? parseInt(id, 10) : null;
 };

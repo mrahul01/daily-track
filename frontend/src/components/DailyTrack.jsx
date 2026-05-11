@@ -1,264 +1,237 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
-import "/src/App.css";
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { Sidebar } from './Sidebar';
+import { BASE_URL } from '../api';
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AF19FF"];
+const COLORS = ['#e85d26', '#2a9d5c', '#2176ae', '#f4a261', '#9b5de5', '#00b4d8'];
 
-const safeString = (val) => {
-  if (val === null || val === undefined) return "-";
-  if (typeof val === "string") return val || "-";
-  if (typeof val === "number") return String(val);
-  if (typeof val === "object") {
-    if (val instanceof Date) return val.toLocaleString();
-    return JSON.stringify(val);
-  }
-  return String(val);
-};
-
-const toSeconds = (time) => {
+// ─── Time Helpers ──────────────────────────────────────────────────────────────
+const toSecs = (t) => {
   try {
-    if (!time) return 0;
-    if (typeof time === "number") return time % (24 * 3600);
-    if (time instanceof Date)
-      return time.getHours() * 3600 + time.getMinutes() * 60 + time.getSeconds();
-    if (typeof time === "string") {
-      const timePart = time.includes("T") ? time.split("T")[1] : time;
-      const clean = timePart.substring(0, 8);
-      const [h, m, s = 0] = clean.split(":").map(Number);
-      return h * 3600 + m * 60 + s;
-    }
-    return 0;
-  } catch {
-    return 0;
-  }
+    if (!t) return 0;
+    const part = typeof t === 'string' && t.includes('T') ? t.split('T')[1] : String(t);
+    const [h, m, s = 0] = part.substring(0, 8).split(':').map(Number);
+    return h * 3600 + m * 60 + s;
+  } catch { return 0; }
 };
 
-const formatTime = (seconds) => {
-  if (!seconds) return "-";
-
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-
-  const date = new Date();
-  date.setHours(hrs, mins, 0);
-
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+const fmtTime = (t) => {
+  const secs = toSecs(t);
+  const d = new Date();
+  d.setHours(Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), 0);
+  return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
 };
 
-const getDuration = (startTime, endTime) => {
-  try {
-    let start = toSeconds(startTime);
-    let end = toSeconds(endTime);
-
-    let duration = end - start;
-    if (duration < 0) duration = end + 24 * 3600 - start;
-
-    const totalMinutes = Math.round(duration / 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
-
-    if (hours === 0) return `${mins} min`;
-    if (mins === 0) return `${hours} hr`;
-    return `${hours} hr ${mins} min`;
-  } catch {
-    return "-";
-  }
+const durMins = (s, e) => {
+  let diff = toSecs(e) - toSecs(s);
+  if (diff < 0) diff += 86400;
+  return Math.round(diff / 60);
 };
 
-const getHoursDecimal = (startTime, endTime) => {
-  try {
-    let start = toSeconds(startTime);
-    let end = toSeconds(endTime);
+const fmtDur = (m) => {
+  if (!m) return '—';
+  const h = Math.floor(m / 60), mn = m % 60;
+  if (h === 0) return `${mn}m`;
+  if (mn === 0) return `${h}h`;
+  return `${h}h ${mn}m`;
+};
 
-    let duration = end - start;
-    if (duration < 0) duration = end + 24 * 3600 - start;
-
-    return duration / 3600;
-  } catch {
-    return 0;
-  }
+// ─── Custom Pie Label ─────────────────────────────────────────────────────────
+const PieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, payload }) => {
+  const R   = Math.PI / 180;
+  const r   = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const x   = cx + r * Math.cos(-midAngle * R);
+  const y   = cy + r * Math.sin(-midAngle * R);
+  return (
+    <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central"
+          fontSize={11} fontWeight={600}>
+      {payload.label}
+    </text>
+  );
 };
 
 function DailyTrack() {
   const navigate = useNavigate();
-  const userID = localStorage.getItem("userID");
+  const userID   = localStorage.getItem('userID');
+  const userName = localStorage.getItem('userName') || '';
 
-  const [data, setData] = useState([]);
-  const [selectedDate, setSelectedDate] = useState("");
+  const [data,    setData]    = useState([]);
+  const [date,    setDate]    = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { setDate(new Date().toISOString().split('T')[0]); }, []);
 
   useEffect(() => {
-    const today = new Date().toISOString().split("T")[0];
-    setSelectedDate(today);
-  }, []);
+    if (!userID) { navigate('/login'); return; }
+    setLoading(true);
+    axios.get(`${BASE_URL}/get-track/${userID}`)
+      .then((res) => setData(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setData([]))
+      .finally(() => setLoading(false));
+  }, [userID, navigate]);
 
-  useEffect(() => {
-    if (!userID) return;
+  const filtered    = date ? data.filter((r) => String(r.track_date) === date) : data;
+  const totalMins   = filtered.reduce((s, r) => s + durMins(r.startTime, r.endTime), 0);
 
-    axios
-      .get(`http://localhost:8000/get-track/${userID}`)
-      .then((res) => {
-        const records = Array.isArray(res.data)
-          ? res.data
-          : res.data.data || [];
-        setData(records);
-      })
-      .catch(() => setData([]));
-  }, [userID]);
-
-  const filteredData = selectedDate
-    ? data.filter((item) => safeString(item.track_date) === selectedDate)
-    : data;
-
-  const workSummary = {};
-
-  filteredData.forEach((item) => {
-    const work = safeString(item.work);
-    if (work === "-") return;
-
-    const hours = getHoursDecimal(item.startTime, item.endTime);
-    workSummary[work] = (workSummary[work] || 0) + hours;
+  // Aggregate by work type
+  const workMap = {};
+  filtered.forEach((r) => {
+    const w = r.work || 'Unknown';
+    workMap[w] = (workMap[w] || 0) + durMins(r.startTime, r.endTime);
   });
 
-  const pieData = Object.keys(workSummary).map((key) => {
-    const totalMins = Math.round(workSummary[key] * 60);
-    const h = Math.floor(totalMins / 60);
-    const m = totalMins % 60;
+  const pieData = Object.entries(workMap).map(([name, mins]) => ({
+    name, value: parseFloat((mins / 60).toFixed(2)), label: fmtDur(mins), mins,
+  }));
 
-    return {
-      name: key,
-      value: parseFloat(workSummary[key].toFixed(2)),
-      label: h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h ${m}m`,
-    };
-  });
+  const workKeys = Object.keys(workMap);
 
-  const totalMinsAll = filteredData.reduce((sum, item) => {
-    return sum + Math.round(getHoursDecimal(item.startTime, item.endTime) * 60);
-  }, 0);
-
-  const totalH = Math.floor(totalMinsAll / 60);
-  const totalM = totalMinsAll % 60;
-
-  const totalLabel =
-    totalH === 0 ? `${totalM} min` : totalM === 0 ? `${totalH} hr` : `${totalH} hr ${totalM} min`;
+  const handleLogout = () => { localStorage.clear(); navigate('/login'); };
 
   return (
-    <div className="daily-track-container">
+    <div className="app-layout">
+      <Sidebar userName={userName} onLogout={handleLogout} />
 
-      <div className="daily-track-header">
-        <h2>Daily Track Records</h2>
-
-        <div className="header-buttons">
-          <button className="btn" onClick={() => navigate("/dashboard")}>
-            ← Back
-          </button>
-
-          <button className="btn btn-green" onClick={() => navigate("/add-track")}>
-            + Add Track
-          </button>
-        </div>
-      </div>
-
-      <div className="date-filter">
-        <label>Select Date:</label>
-
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-        />
-
-        {filteredData.length > 0 && (
-          <span>
-            {filteredData.length} record(s) — <strong>{totalLabel}</strong>
-          </span>
-        )}
-      </div>
-
-      {filteredData.length > 0 ? (
-        <div className="content-wrapper">
-
-          <div className="table-container">
-            <h3>Work Details</h3>
-
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Work</th>
-                  <th>Duration</th>
-                  <th>Start</th>
-                  <th>End</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredData.map((item, i) => (
-                  <tr key={i}>
-                    <td>
-                      <span
-                        className="work-dot"
-                        style={{
-                          background:
-                            COLORS[
-                              Object.keys(workSummary).indexOf(safeString(item.work)) %
-                                COLORS.length
-                            ],
-                        }}
-                      />
-                      {safeString(item.work)}
-                    </td>
-
-                    <td className="center">
-                      {getDuration(item.startTime, item.endTime)}
-                    </td>
-
-                    <td className="center">
-                      {formatTime(item.startTime)}
-                    </td>
-
-                    <td className="center">
-                      {formatTime(item.endTime)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <main className="main-content">
+        <div className="track-page-header">
+          <div>
+            <h1 className="page-heading">Daily Track</h1>
+            <p className="page-subheading">Your work entries and time breakdown</p>
           </div>
-          <div className="divider" />
-          <div className="pie-container">
-            
-            <h3>Work Distribution</h3>
-        <hr style={{ border: "1px solid #ccc", margin: "20px 0" }} />
-            <PieChart width={500} height={400}>
-              <Pie
-                data={pieData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                labelLine={false}
-                label={({ name, payload }) => `${name} (${payload.label})`}
+          <div className="track-header-actions">
+            <button className="btn btn-green-outline btn-sm" onClick={() => navigate('/add-track')}>
+              ＋ Add Entry
+            </button>
+          </div>
+        </div>
+
+        <div className="date-bar">
+          <label>Date</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          {filtered.length > 0 && (
+            <span className="summary-pill">
+              {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'} ·{' '}
+              <strong>{fmtDur(totalMins)}</strong> tracked
+            </span>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+            Loading entries…
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="card">
+            <div className="no-data">
+              <div className="no-data-icon">📭</div>
+              <p>No entries found for this date.</p>
+              <button
+                className="btn btn-primary"
+                style={{ marginTop: 16, maxWidth: 200 }}
+                onClick={() => navigate('/add-track')}
               >
-                {pieData.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Pie>
-
-              <Tooltip formatter={(value, name, props) => [props.payload.label, name]} />
-              <Legend />
-            </PieChart>
+                Add Entry
+              </button>
+            </div>
           </div>
+        ) : (
+          <div className="track-grid">
+            {/* Table */}
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">Work Entries</span>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  {date}
+                </span>
+              </div>
+              <table className="track-table">
+                <thead>
+                  <tr>
+                    <th>Work</th>
+                    <th>Duration</th>
+                    <th>Start</th>
+                    <th>End</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((item, i) => {
+                    const ci = workKeys.indexOf(item.work || 'Unknown') % COLORS.length;
+                    return (
+                      <tr key={i}>
+                        <td>
+                          <span className="work-badge">
+                            <span className="work-dot" style={{ background: COLORS[ci] }} />
+                            {item.work || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="duration-chip">
+                            {fmtDur(durMins(item.startTime, item.endTime))}
+                          </span>
+                        </td>
+                        <td><span className="time-text">{fmtTime(item.startTime)}</span></td>
+                        <td><span className="time-text">{fmtTime(item.endTime)}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-        </div>
-      ) : (
-        <p className="no-data">No records found for this date.</p>
-      )}
+            {/* Pie */}
+            <div className="card chart-card">
+              <div className="card-header">
+                <span className="card-title">Distribution</span>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  {fmtDur(totalMins)} total
+                </span>
+              </div>
+
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    labelLine={false}
+                    label={PieLabel}
+                  >
+                    {pieData.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(_, name, props) => [props.payload.label, name]}
+                    contentStyle={{
+                      fontSize: 13, borderRadius: 8,
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg-card)',
+                      color: 'var(--text-heading)',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+
+              <div className="chart-legend" style={{ padding: '0 16px 16px' }}>
+                {pieData.map((entry, i) => (
+                  <div key={i} className="legend-item">
+                    <span className="legend-left">
+                      <span className="legend-dot" style={{ background: COLORS[i % COLORS.length] }} />
+                      {entry.name}
+                    </span>
+                    <span className="legend-time">{entry.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }

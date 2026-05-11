@@ -1,189 +1,117 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import '/src/App.css';
+import { BASE_URL } from '../api';
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function Login() {
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    emailID: '',
-    password: ''
-  });
+  const [formData, setFormData] = useState({ emailID: '', password: '' });
+  const [errors, setErrors]     = useState({});
+  const [apiMsg, setApiMsg]     = useState('');
+  const [loading, setLoading]   = useState(false);
 
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  // OTP STATES
-  const [isPhoneLogin, setIsPhoneLogin] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState('');
-
-  // ---------------- EMAIL LOGIN ----------------
- const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  if (isPhoneLogin) {
-    alert("Phone login is under development 🚧");
-    return;
-  }
-
-  // Basic validation
-  if (!formData.emailID || !formData.password) {
-    setMessage("Please fill all fields");
-    alert("Please fill all fields");
-    return;
-  }
-
-  // Email format validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  if (!emailRegex.test(formData.emailID)) {
-    setMessage("Invalid email format");
-    alert("Please enter a valid email address");
-    return;
-  }
-
-  // Phone validation (optional if used somewhere)
-  const phoneRegex = /^[6-9]\d{9}$/;
-  if (formData.phoneNO && !phoneRegex.test(formData.phoneNO)) {
-    setMessage("Invalid phone number");
-    alert("Please enter a valid 10-digit phone number");
-    return;
-  }
-
-  setLoading(true);
-  setMessage('');
-
-  try {
-    const res = await axios.post('http://localhost:8000/login', {
-      emailID: formData.emailID,
-      password: formData.password
-    });
-
-    localStorage.setItem("userID", res.data.user.id);
-
-    setMessage(res.data.message);
-    alert("Login successful ");
-
-    navigate('/dashboard');
-
-  } catch (err) {
-    const errorMsg = err.response?.data?.detail || "Login failed";
-
-    // 🎯 Custom alerts based on backend response
-    if (errorMsg === "User not found") {
-      alert("Email is not registered ");
-    } else if (errorMsg === "Wrong password") {
-      alert("Incorrect password ");
-    } else {
-      alert(errorMsg);
-    }
-
-    setMessage(errorMsg);
-
-  } finally {
-    setLoading(false);
-  }
-};
-
-  // ---------------- SEND OTP ----------------
-  const sendOtp = async () => {
-    alert("OTP requests are reached limit. Please try to login using email,password.");
-    setMessage("OTP requests are reached limit. Please try to login using email,password.");
-    if (!formData.emailID) {
-      alert("Please enter your phone number");
-      setMessage("Please enter your phone number");
-      return;
-    }
-
-
+  const validate = () => {
+    const e = {};
+    if (!formData.emailID)                       e.emailID  = 'Email is required';
+    else if (!emailRegex.test(formData.emailID)) e.emailID  = 'Invalid email address';
+    if (!formData.password)                      e.password = 'Password is required';
+    return e;
   };
 
-  // ---------------- VERIFY OTP ----------------
-  const verifyOtp = async () => {
-    alert("OTP verification is under development");
-    setMessage("OTP verification is under development");
+  const handleSubmit = async (ev) => {
+    ev.preventDefault();
+    const errs = validate();
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+
+    setLoading(true);
+    setApiMsg('');
+    setErrors({});
+
+    try {
+      const res = await axios.post(`${BASE_URL}/login`, {
+        emailID:  formData.emailID,
+        password: formData.password,
+      });
+
+      localStorage.setItem('userID',   res.data.user.id);
+      localStorage.setItem('userName', res.data.user.name);
+      navigate('/dashboard');
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'Login failed. Try again.';
+      const msgMap = {
+        'User not found': 'No account found with this email.',
+        'Wrong password': 'Incorrect password. Please try again.',
+      };
+      setApiMsg(msgMap[detail] || detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (field) => (e) => {
+    setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+    setErrors((prev)   => ({ ...prev, [field]: '' }));
+    setApiMsg('');
   };
 
   return (
-    <div className="login-container">
-      <form className="login-form" onSubmit={handleSubmit}>
-        <h2>Login</h2>
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-logo">
+          <div className="auth-logo-icon">⏱</div>
+          <span className="auth-logo-text">DailyTrack</span>
+        </div>
 
-        {/* EMAIL OR PHONE INPUT */}
-        <input
-          type="text"
-          placeholder="Email or Phone"
-          value={formData.emailID}
-          onChange={(e) => {
-            const value = e.target.value;
+        <h2>Welcome back</h2>
+        <p className="auth-subtitle">Sign in to your account to continue</p>
 
-            setFormData({ ...formData, emailID: value });
-
-            // detect phone login
-            if (/^[0-9]{10}$/.test(value)) {
-              setIsPhoneLogin(true);
-            } else {
-              setIsPhoneLogin(false);
-              setOtpSent(false);
-            }
-          }}
-        />
-
-        {/* PASSWORD ONLY FOR EMAIL LOGIN */}
-        {!isPhoneLogin && (
-          <input
-            type="password"
-            placeholder="Password"
-            value={formData.password}
-            onChange={(e) =>
-              setFormData({ ...formData, password: e.target.value })
-            }
-          />
-        )}
-
-        {/* EMAIL LOGIN BUTTON */}
-        {!isPhoneLogin && (
-          <button type="submit" disabled={loading}>
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
-        )}
-
-        {/* PHONE LOGIN - SEND OTP */}
-        {isPhoneLogin && !otpSent && (
-          <button type="button" onClick={sendOtp}>
-            Send OTP
-          </button>
-        )}
-
-        {/* PHONE LOGIN - VERIFY OTP */}
-        {isPhoneLogin && otpSent && (
-          <>
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="field">
+            <label htmlFor="emailID">Email</label>
             <input
-              type="text"
-              placeholder="Enter OTP"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
+              id="emailID"
+              type="email"
+              placeholder="you@example.com"
+              value={formData.emailID}
+              onChange={handleChange('emailID')}
+              autoComplete="email"
             />
+            {errors.emailID && <span className="field-error">{errors.emailID}</span>}
+          </div>
 
-            <button type="button" onClick={verifyOtp}>
-              Verify OTP
-            </button>
-          </>
-        )}
+          <div className="field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={formData.password}
+              onChange={handleChange('password')}
+              autoComplete="current-password"
+            />
+            {errors.password && <span className="field-error">{errors.password}</span>}
+          </div>
 
-        {/* REGISTER LINK */}
-        <p className="toggle-text">
-          Don't have an account?{" "}
-          <span onClick={() => navigate('/register')}>
-            Register here
-          </span>
+          {apiMsg && (
+            <div className="alert alert-error">
+              <span>⚠</span> {apiMsg}
+            </div>
+          )}
+
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading && <span className="spinner" />}
+            {loading ? 'Signing in…' : 'Sign In'}
+          </button>
+        </form>
+
+        <p className="auth-toggle">
+          Don't have an account?{' '}
+          <span onClick={() => navigate('/register')}>Create one</span>
         </p>
-
-        {/* MESSAGE */}
-        {message && <p className="msg">{message}</p>}
-      </form>
+      </div>
     </div>
   );
 }
